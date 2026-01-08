@@ -1,20 +1,33 @@
-// server.js — Cleaned, syntax fixed, with crypto heatmap and FMP economic calendar
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 
 const app = express();
-app.use(cors());
+
+/* ------------------------------------------------------
+   CORS CONFIGURATION FOR VERCEL
+------------------------------------------------------ */
+app.use(cors({
+  origin: [
+    'http://localhost:5500',                                    // Local development
+    'http://127.0.0.1:5500',                                    // Local development  
+    'https://marome-investments-finance.vercel.app',            // ✅ Your Vercel URL
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 /* ------------------------------------------------------
    CONFIG / KEYS
 ------------------------------------------------------ */
-const EODHD_KEY = process. env.EODHD_API_KEY;
+const EODHD_KEY = process.env.EODHD_API_KEY;
 const TWELVEDATA_KEY = process.env.TWELVEDATA_API_KEY;
 const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
-const FMP_KEY = process.env.FMP_API_KEY; // ✅ ADDED
+const FMP_KEY = process.env.FMP_API_KEY;
 const PORT = process.env.PORT || 5000;
 
 /* ------------------------------------------------------
@@ -23,7 +36,7 @@ const PORT = process.env.PORT || 5000;
 const MOVERS_CACHE_TTL = 2 * 60 * 1000;
 const GENERIC_TTL = 60 * 1000;
 const HEATMAP_TTL = 5 * 60 * 1000;
-const CALENDAR_TTL = 6 * 60 * 60 * 1000; // ✅ ADDED - 6 hours
+const CALENDAR_TTL = 6 * 60 * 60 * 1000;
 
 let moversCache = null;
 let moversCacheTimestamp = 0;
@@ -39,8 +52,8 @@ let commoditiesCache = null;
 let commoditiesCacheTime = 0;
 let cryptoHeatmapCache = null;
 let cryptoHeatmapCacheTime = 0;
-let calendarCache = null; // ✅ ADDED
-let calendarCacheTime = 0; // ✅ ADDED
+let calendarCache = null;
+let calendarCacheTime = 0;
 
 /* ------------------------------------------------------
    SYMBOLS
@@ -72,7 +85,7 @@ const YAHOO_FOREX_SYMBOLS = {
   "EUR/USD": "EURUSD=X",
   "GBP/USD": "GBPUSD=X",
   "USD/JPY": "USDJPY=X",
-  "USD/ZAR": "USDZAR=X",
+  "USD/ZAR":  "USDZAR=X",
   "AUD/USD": "AUDUSD=X",
   "USD/CHF": "USDCHF=X"
 };
@@ -138,15 +151,15 @@ app. get("/api/indices", async (req, res) => {
     for (const [name, symbol] of Object.entries(INDEX_SYMBOLS)) {
       try {
         const r = await http.get(`${YAHOO_CHART}/${symbol}?interval=1d&range=5d`);
-        const data = r.data.chart?.result?.[0];
+        const data = r.data. chart?. result?.[0];
         if (! data) continue;
 
-        const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
+        const closes = data. indicators.quote[0].close. filter(n => typeof n === "number");
         if (closes.length < 2) continue;
 
         const pct = ((closes.at(-1) - closes.at(-2)) / closes.at(-2)) * 100;
 
-        results. push({
+        results.push({
           name,
           symbol,
           change: `${pct >= 0 ?  "+" : ""}${pct.toFixed(2)}%`,
@@ -221,10 +234,11 @@ app.get("/api/forex", async (req, res) => {
 ------------------------------------------------------ */
 app. get("/api/forex-strength", async (req, res) => {
   try {
+    // Use internal call on Render
     const r = await http.get(`http://localhost:${PORT}/api/forex`).catch(() => null);
     const data = r?.data || [];
 
-    const pairCount = { USD: 0, EUR: 0, GBP: 0, JPY: 0, AUD: 0, CHF: 0, ZAR: 0 };
+    const pairCount = { USD: 0, EUR: 0, GBP: 0, JPY: 0, AUD: 0, CHF:  0, ZAR: 0 };
     const strength = { USD: 0, EUR: 0, GBP: 0, JPY: 0, AUD: 0, CHF:  0, ZAR: 0 };
 
     data.forEach(item => {
@@ -264,7 +278,7 @@ app. get("/api/forex-strength", async (req, res) => {
     res.json(result);
 
   } catch (err) {
-    console.error("❌ /api/forex-strength error:", err.message);
+    console.error("❌ /api/forex-strength error:", err. message);
     res.status(500).json({ error: "Failed to compute strength" });
   }
 });
@@ -293,7 +307,7 @@ app.get("/api/commodities", async (req, res) => {
         const previousPrice = closes.at(-2);
         const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
 
-        results.push({
+        results. push({
           name,
           symbol,
           change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
@@ -345,11 +359,11 @@ app.get("/api/crypto", async (req, res) => {
       try {
         const url = `${YAHOO_CHART}/${symbol}?interval=1d&range=5d`;
         const r = await http.get(url);
-        const data = r. data.chart?.result?.[0];
+        const data = r.data.chart?.result?.[0];
         if (!data) continue;
 
-        const closes = data. indicators.quote[0].close. filter(n => typeof n === "number");
-        if (closes. length < 2) continue;
+        const closes = data.indicators.quote[0]. close.filter(n => typeof n === "number");
+        if (closes.length < 2) continue;
 
         const currentPrice = closes.at(-1);
         const previousPrice = closes. at(-2);
@@ -405,7 +419,7 @@ async function fetchEodCryptoMovers() {
       if (closes.length < 2) continue;
 
       const currentPrice = closes.at(-1);
-      const previousPrice = closes. at(-2);
+      const previousPrice = closes.at(-2);
       const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
 
       items.push(formatMover(name, symbol, pct, "Crypto"));
@@ -428,11 +442,11 @@ async function fetchCommodityMovers() {
 
   for (const [name, symbol] of Object.entries(COMMODITY_SYMBOLS)) {
     try {
-      const r = await http.get(`${YAHOO_CHART}/${symbol}? interval=1d&range=5d`);
+      const r = await http.get(`${YAHOO_CHART}/${symbol}?interval=1d&range=5d`);
       const data = r.data.chart?.result?.[0];
-      if (!data) continue;
+      if (! data) continue;
 
-      const closes = data.indicators.quote[0]. close.filter(n => typeof n === "number");
+      const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
       if (closes.length < 2) continue;
 
       const currentPrice = closes.at(-1);
@@ -463,7 +477,7 @@ async function fetchEodTopStocks(limit = 6) {
         `https://eodhd.com/api/top? api_token=${EODHD_KEY}&screener=${side}&limit=${limit}&fmt=json`
       );
 
-      if (!Array.isArray(r.data)) return { items: [] };
+      if (! Array.isArray(r.data)) return { items: [] };
 
       const items = r.data.map(it =>
         formatMover(
@@ -646,7 +660,7 @@ app.get("/api/forex-heatmap", async (req, res) => {
 ------------------------------------------------------ */
 app.get("/api/crypto-heatmap", async (req, res) => {
   try {
-    if (cryptoHeatmapCache && Date. now() - cryptoHeatmapCacheTime < HEATMAP_TTL)
+    if (cryptoHeatmapCache && Date.now() - cryptoHeatmapCacheTime < HEATMAP_TTL)
       return res.json(cryptoHeatmapCache);
 
     const cryptoSymbols = {
@@ -656,7 +670,7 @@ app.get("/api/crypto-heatmap", async (req, res) => {
       SOL: "SOL-USD",
       ADA: "ADA-USD",
       DOGE: "DOGE-USD",
-      AVAX:  "AVAX-USD",
+      AVAX: "AVAX-USD",
       BNB: "BNB-USD",
       LTC: "LTC-USD"
     };
@@ -727,7 +741,6 @@ app.get("/api/crypto-heatmap", async (req, res) => {
 ------------------------------------------------------ */
 app.get("/api/economic-calendar", async (req, res) => {
   try {
-    // Check cache first
     if (calendarCache && Date.now() - calendarCacheTime < CALENDAR_TTL) {
       console.log("✅ Using cached calendar data");
       return res.json(calendarCache);
@@ -740,10 +753,9 @@ app.get("/api/economic-calendar", async (req, res) => {
     const fromDate = today.toISOString().split('T')[0];
     const toDate = nextMonth.toISOString().split('T')[0];
     
-    // FMP API endpoint
     const url = `https://financialmodelingprep.com/api/v3/economic_calendar? from=${fromDate}&to=${toDate}&apikey=${FMP_KEY}`;
     
-    console.log("📅 Fetching economic calendar from FMP...");
+    console.log("📅 Fetching economic calendar from FMP.. .");
     console.log(`📆 Date range: ${fromDate} to ${toDate}`);
     
     const r = await http.get(url);
@@ -755,31 +767,23 @@ app.get("/api/economic-calendar", async (req, res) => {
     
     console.log(`📊 Received ${r.data.length} events from FMP`);
     
-    // Get today for filtering
     const todayMidnight = new Date();
     todayMidnight.setHours(0, 0, 0, 0);
     
-    // Filter and format
-    const events = r. data
+    const events = r.data
       .filter(event => {
-        if (!event.event || !event.country || !event.date) return false;
-        
-        // Only include future events
-        const eventDate = new Date(event.date);
+        if (! event.event || !event.country || !event.date) return false;
+        const eventDate = new Date(event. date);
         return eventDate >= todayMidnight;
       })
       .map(event => {
-        // Parse date (FMP format:  "2026-01-06 14:30:00")
         const dateTime = new Date(event.date);
         const dateOnly = dateTime.toISOString().split('T')[0];
         const hours = String(dateTime.getHours()).padStart(2, '0');
         const minutes = String(dateTime.getMinutes()).padStart(2, '0');
         const timeOnly = `${hours}:${minutes}`;
         
-        // Determine importance
         let importance = "Medium";
-        
-        // FMP provides "impact" field
         const impact = (event.impact || "").toLowerCase();
         
         if (impact === "high") {
@@ -789,7 +793,6 @@ app.get("/api/economic-calendar", async (req, res) => {
         } else if (impact === "low") {
           importance = "Low";
         } else {
-          // Fallback:  analyze event name
           const eventName = (event.event || "").toLowerCase();
           const highKeywords = ['gdp', 'interest rate', 'nfp', 'non-farm', 'payroll',
                                'cpi', 'unemployment', 'inflation', 'fed', 'fomc',
@@ -811,7 +814,7 @@ app.get("/api/economic-calendar", async (req, res) => {
           time:  timeOnly,
           country: event.country,
           event: event.event,
-          actual: event.actual !== null && event.actual !== undefined ?  event.actual : null,
+          actual: event.actual !== null && event.actual !== undefined ? event. actual : null,
           forecast: event.estimate !== null && event.estimate !== undefined ? event.estimate : null,
           previous: event.previous !== null && event.previous !== undefined ? event.previous : null,
           importance: importance,
@@ -819,7 +822,6 @@ app.get("/api/economic-calendar", async (req, res) => {
           rawDateTime: dateTime
         };
       })
-      // Filter to major economies
       .filter(event => {
         const majorCountries = ['US', 'GB', 'UK', 'EU', 'JP', 'CN', 'CA', 'AU', 'NZ', 'CH', 'ZA',
                                'DE', 'FR', 'IT', 'ES', 'BR', 'MX', 'IN',
@@ -827,14 +829,12 @@ app.get("/api/economic-calendar", async (req, res) => {
                                'France', 'Japan', 'China', 'Canada', 'Australia', 'South Africa'];
         
         const countryUpper = event.country.toUpperCase();
-        return majorCountries. some(c => 
+        return majorCountries.some(c => 
           countryUpper.includes(c. toUpperCase()) || 
           c.toUpperCase().includes(countryUpper)
         );
       })
-      // Sort by date and time
       .sort((a, b) => a.rawDateTime - b.rawDateTime)
-      // Limit to 100 events
       .slice(0, 100);
     
     console.log(`✅ Loaded ${events.length} economic events (filtered)`);
@@ -843,7 +843,6 @@ app.get("/api/economic-calendar", async (req, res) => {
       console.log(`📅 First event: ${events[0].date} ${events[0].time} - ${events[0].event} (${events[0].country})`);
       console.log(`📅 Last event: ${events[events.length - 1].date} - ${events[events.length - 1].event}`);
       
-      // Show distribution by date
       const eventsByDate = {};
       events.forEach(e => {
         eventsByDate[e.date] = (eventsByDate[e.date] || 0) + 1;
@@ -855,7 +854,6 @@ app.get("/api/economic-calendar", async (req, res) => {
       console.log("⚠️ No events found after filtering");
     }
     
-    // Cache the results
     calendarCache = events;
     calendarCacheTime = Date.now();
     

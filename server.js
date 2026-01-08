@@ -78,7 +78,7 @@ const INDEX_SYMBOLS = {
   "S&P 500": "SPY",
   "NASDAQ 100": "QQQ",
   "Dow Jones": "DIA",
-  "JSE Top 40": "STX40. JO"
+  "JSE Top 40": "STX40.JO"
 };
 
 const YAHOO_FOREX_SYMBOLS = {

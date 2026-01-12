@@ -12,7 +12,7 @@ app.use(cors({
   origin: [
     'http://localhost:5500',                                    // Local development
     'http://127.0.0.1:5500',                                    // Local development  
-    'https://marome-investments-finance.vercel.app',            // ✅ Your Vercel URL
+    'https://marome-investments-finance.vercel.app',            // ✅ Vercel URL
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

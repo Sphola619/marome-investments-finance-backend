@@ -16,7 +16,7 @@ app.use(cors({
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders:  ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
@@ -27,7 +27,7 @@ app.use(express.json());
 const EODHD_KEY = process.env.EODHD_API_KEY;
 const TWELVEDATA_KEY = process.env.TWELVEDATA_API_KEY;
 const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
-const FMP_KEY = process.env.FMP_API_KEY;
+const FMP_KEY = process.env. FMP_API_KEY;
 const PORT = process.env.PORT || 5000;
 
 /* ------------------------------------------------------
@@ -64,6 +64,8 @@ const FOREX_PAIRS = [
   "GBP/USD",
   "USD/JPY",
   "USD/ZAR",
+  "EUR/ZAR",     // ✅ NEW - SA Focus
+  "GBP/ZAR",     // ✅ NEW - SA Focus
   "AUD/USD",
   "USD/CHF"
 ];
@@ -85,7 +87,9 @@ const YAHOO_FOREX_SYMBOLS = {
   "EUR/USD": "EURUSD=X",
   "GBP/USD": "GBPUSD=X",
   "USD/JPY": "USDJPY=X",
-  "USD/ZAR":  "USDZAR=X",
+  "USD/ZAR": "USDZAR=X",
+  "EUR/ZAR": "EURZAR=X",     // ✅ NEW - SA Focus
+  "GBP/ZAR": "GBPZAR=X",     // ✅ NEW - SA Focus
   "AUD/USD": "AUDUSD=X",
   "USD/CHF": "USDCHF=X"
 };
@@ -93,12 +97,14 @@ const YAHOO_FOREX_SYMBOLS = {
 const YAHOO_HEATMAP_SYMBOLS = {
   "EUR/USD": "EURUSD=X",
   "GBP/USD": "GBPUSD=X",
-  "USD/JPY":  "USDJPY=X",
-  "USD/ZAR": "USDZAR=X",
+  "USD/JPY": "USDJPY=X",
+  "USD/ZAR":  "USDZAR=X",
+  "EUR/ZAR": "EURZAR=X",     // ✅ NEW - SA Focus
+  "GBP/ZAR": "GBPZAR=X",     // ✅ NEW - SA Focus
   "AUD/USD": "AUDUSD=X",
   "USD/CHF": "USDCHF=X",
   Gold: "GC=F",
-  Silver: "SI=F",
+  Silver:  "SI=F",
   "Crude Oil": "CL=F"
 };
 
@@ -120,7 +126,7 @@ const formatMover = (name, symbol, pct, type) => ({
   performance: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
   rawChange: pct,
   type,
-  trend: pct >= 0 ?  "positive" : "negative"
+  trend: pct >= 0 ? "positive" : "negative"
 });
 
 /* ------------------------------------------------------
@@ -133,7 +139,7 @@ app.get("/api/news", async (req, res) => {
     );
     res.json(r.data);
   } catch (err) {
-    console.error("❌ /api/news error:", err. message);
+    console.error("❌ /api/news error:", err.message);
     res.status(500).json({ error: "Failed to fetch news" });
   }
 });
@@ -151,13 +157,13 @@ app. get("/api/indices", async (req, res) => {
     for (const [name, symbol] of Object.entries(INDEX_SYMBOLS)) {
       try {
         const r = await http.get(`${YAHOO_CHART}/${symbol}?interval=1d&range=5d`);
-        const data = r.data. chart?. result?.[0];
+        const data = r.data.chart?. result?.[0];
         if (! data) continue;
 
-        const closes = data. indicators.quote[0].close. filter(n => typeof n === "number");
+        const closes = data.indicators.quote[0].close. filter(n => typeof n === "number");
         if (closes.length < 2) continue;
 
-        const pct = ((closes.at(-1) - closes.at(-2)) / closes.at(-2)) * 100;
+        const pct = ((closes. at(-1) - closes.at(-2)) / closes.at(-2)) * 100;
 
         results.push({
           name,
@@ -178,7 +184,7 @@ app. get("/api/indices", async (req, res) => {
     res.json(results);
 
   } catch (err) {
-    console.error("❌ /api/indices error:", err.message);
+    console.error("❌ /api/indices error:", err. message);
     res.status(500).json({ error: "Failed to fetch indices" });
   }
 });
@@ -207,7 +213,7 @@ app.get("/api/forex", async (req, res) => {
         results.push({
           pair,
           name: pair,
-          change: `${pct >= 0 ? "+" :  ""}${pct.toFixed(2)}%`,
+          change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
           trend: pct >= 0 ?  "positive" : "negative",
           price: closes.at(-1)
         });
@@ -477,7 +483,7 @@ async function fetchEodTopStocks(limit = 6) {
         `https://eodhd.com/api/top? api_token=${EODHD_KEY}&screener=${side}&limit=${limit}&fmt=json`
       );
 
-      if (! Array.isArray(r.data)) return { items: [] };
+      if (!Array.isArray(r.data)) return { items: [] };
 
       const items = r.data.map(it =>
         formatMover(
@@ -670,7 +676,7 @@ app.get("/api/crypto-heatmap", async (req, res) => {
       SOL: "SOL-USD",
       ADA: "ADA-USD",
       DOGE: "DOGE-USD",
-      AVAX: "AVAX-USD",
+      AVAX:  "AVAX-USD",
       BNB: "BNB-USD",
       LTC: "LTC-USD"
     };
@@ -681,9 +687,9 @@ app.get("/api/crypto-heatmap", async (req, res) => {
 
       const timeframes = {
         "1h": { interval: "5m", range: "1d" },
-        "4h":  { interval: "15m", range: "5d" },
+        "4h": { interval: "15m", range:  "5d" },
         "1d": { interval: "1d", range: "5d" },
-        "1w":  { interval: "1d", range: "1mo" }
+        "1w": { interval: "1d", range:  "1mo" }
       };
 
       const tfResults = {};
@@ -692,12 +698,12 @@ app.get("/api/crypto-heatmap", async (req, res) => {
         let pct = null;
 
         try {
-          const url = `${YAHOO_CHART}/${symbol}? interval=${params.interval}&range=${params.range}`;
+          const url = `${YAHOO_CHART}/${symbol}?interval=${params.interval}&range=${params.range}`;
           const r = await http.get(url);
-          const data = r. data.chart?.result?.[0];
+          const data = r.data.chart?.result?.[0];
 
           if (data) {
-            const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
+            const closes = data.indicators. quote[0].close.filter(n => typeof n === "number");
 
             if (closes.length >= 2) {
               let compareIndex = -2;
@@ -708,7 +714,7 @@ app.get("/api/crypto-heatmap", async (req, res) => {
 
               if (Math.abs(compareIndex) <= closes.length) {
                 const current = closes.at(-1);
-                const previous = closes.at(compareIndex);
+                const previous = closes. at(compareIndex);
                 pct = ((current - previous) / previous) * 100;
               }
             }
@@ -748,14 +754,14 @@ app.get("/api/economic-calendar", async (req, res) => {
 
     const today = new Date();
     const nextMonth = new Date(today);
-    nextMonth.setDate(today.getDate() + 30);
+    nextMonth.setDate(today. getDate() + 30);
     
     const fromDate = today.toISOString().split('T')[0];
     const toDate = nextMonth.toISOString().split('T')[0];
     
-    const url = `https://financialmodelingprep.com/api/v3/economic_calendar? from=${fromDate}&to=${toDate}&apikey=${FMP_KEY}`;
+    const url = `https://financialmodelingprep.com/api/v3/economic_calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_KEY}`;
     
-    console.log("📅 Fetching economic calendar from FMP.. .");
+    console.log("📅 Fetching economic calendar from FMP...");
     console.log(`📆 Date range: ${fromDate} to ${toDate}`);
     
     const r = await http.get(url);
@@ -814,7 +820,7 @@ app.get("/api/economic-calendar", async (req, res) => {
           time:  timeOnly,
           country: event.country,
           event: event.event,
-          actual: event.actual !== null && event.actual !== undefined ? event. actual : null,
+          actual: event.actual !== null && event.actual !== undefined ?  event.actual : null,
           forecast: event.estimate !== null && event.estimate !== undefined ? event.estimate : null,
           previous: event.previous !== null && event.previous !== undefined ? event.previous : null,
           importance: importance,
@@ -829,7 +835,7 @@ app.get("/api/economic-calendar", async (req, res) => {
                                'France', 'Japan', 'China', 'Canada', 'Australia', 'South Africa'];
         
         const countryUpper = event.country.toUpperCase();
-        return majorCountries.some(c => 
+        return majorCountries. some(c => 
           countryUpper.includes(c. toUpperCase()) || 
           c.toUpperCase().includes(countryUpper)
         );

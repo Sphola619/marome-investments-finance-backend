@@ -27,7 +27,7 @@ app.use(express.json());
 const EODHD_KEY = process.env.EODHD_API_KEY;
 const TWELVEDATA_KEY = process.env.TWELVEDATA_API_KEY;
 const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
-const FMP_KEY = process.env. FMP_API_KEY;
+const FMP_KEY = process.env.FMP_API_KEY;
 const PORT = process.env.PORT || 5000;
 
 /* ------------------------------------------------------
@@ -77,10 +77,10 @@ const COMMODITY_SYMBOLS = {
 };
 
 const INDEX_SYMBOLS = {
-  "S&P 500": "SPY",
-  "NASDAQ 100": "QQQ",
-  "Dow Jones": "DIA",
-  "JSE Top 40": "STX40.JO"
+  "S&P 500": "^GSPC",           // ✅ S&P 500 Index
+  "NASDAQ 100":  "^NDX",         // ✅ NASDAQ-100 Index
+  "Dow Jones": "^DJI",          // ✅ Dow Jones Industrial Average
+  "JSE Top 40": "^J200.JO"      // ✅ JSE Top 40 (correct symbol)
 };
 
 const YAHOO_FOREX_SYMBOLS = {
@@ -97,14 +97,14 @@ const YAHOO_FOREX_SYMBOLS = {
 const YAHOO_HEATMAP_SYMBOLS = {
   "EUR/USD": "EURUSD=X",
   "GBP/USD": "GBPUSD=X",
-  "USD/JPY": "USDJPY=X",
-  "USD/ZAR":  "USDZAR=X",
+  "USD/JPY":  "USDJPY=X",
+  "USD/ZAR": "USDZAR=X",
   "EUR/ZAR": "EURZAR=X",     // ✅ NEW - SA Focus
   "GBP/ZAR": "GBPZAR=X",     // ✅ NEW - SA Focus
   "AUD/USD": "AUDUSD=X",
   "USD/CHF": "USDCHF=X",
   Gold: "GC=F",
-  Silver:  "SI=F",
+  Silver: "SI=F",
   "Crude Oil": "CL=F"
 };
 
@@ -126,7 +126,7 @@ const formatMover = (name, symbol, pct, type) => ({
   performance: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
   rawChange: pct,
   type,
-  trend: pct >= 0 ? "positive" : "negative"
+  trend: pct >= 0 ?  "positive" : "negative"
 });
 
 /* ------------------------------------------------------
@@ -139,7 +139,7 @@ app.get("/api/news", async (req, res) => {
     );
     res.json(r.data);
   } catch (err) {
-    console.error("❌ /api/news error:", err.message);
+    console.error("❌ /api/news error:", err. message);
     res.status(500).json({ error: "Failed to fetch news" });
   }
 });
@@ -147,7 +147,7 @@ app.get("/api/news", async (req, res) => {
 /* ------------------------------------------------------
    INDICES
 ------------------------------------------------------ */
-app. get("/api/indices", async (req, res) => {
+app.get("/api/indices", async (req, res) => {
   try {
     if (indicesCache && Date.now() - indicesCacheTime < GENERIC_TTL)
       return res.json(indicesCache);
@@ -160,7 +160,7 @@ app. get("/api/indices", async (req, res) => {
         const data = r.data.chart?. result?.[0];
         if (! data) continue;
 
-        const closes = data.indicators.quote[0].close. filter(n => typeof n === "number");
+        const closes = data. indicators.quote[0].close. filter(n => typeof n === "number");
         if (closes.length < 2) continue;
 
         const pct = ((closes. at(-1) - closes.at(-2)) / closes.at(-2)) * 100;
@@ -168,7 +168,7 @@ app. get("/api/indices", async (req, res) => {
         results.push({
           name,
           symbol,
-          change: `${pct >= 0 ?  "+" : ""}${pct.toFixed(2)}%`,
+          change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
           latest: closes.at(-1).toFixed(2),
           rawChange: pct
         });
@@ -238,7 +238,7 @@ app.get("/api/forex", async (req, res) => {
 /* ------------------------------------------------------
    FOREX STRENGTH - IMPROVED ALGORITHM
 ------------------------------------------------------ */
-app. get("/api/forex-strength", async (req, res) => {
+app.get("/api/forex-strength", async (req, res) => {
   try {
     // Use internal call on Render
     const r = await http.get(`http://localhost:${PORT}/api/forex`).catch(() => null);
@@ -368,11 +368,11 @@ app.get("/api/crypto", async (req, res) => {
         const data = r.data.chart?.result?.[0];
         if (!data) continue;
 
-        const closes = data.indicators.quote[0]. close.filter(n => typeof n === "number");
+        const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
         if (closes.length < 2) continue;
 
-        const currentPrice = closes.at(-1);
-        const previousPrice = closes. at(-2);
+        const currentPrice = closes. at(-1);
+        const previousPrice = closes.at(-2);
         const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
 
         results.push({
@@ -410,7 +410,7 @@ async function fetchEodCryptoMovers() {
     ETH: "ETH-USD",
     XRP: "XRP-USD",
     SOL: "SOL-USD",
-    ADA: "ADA-USD"
+    ADA:  "ADA-USD"
   };
 
   const items = [];
@@ -448,11 +448,11 @@ async function fetchCommodityMovers() {
 
   for (const [name, symbol] of Object.entries(COMMODITY_SYMBOLS)) {
     try {
-      const r = await http.get(`${YAHOO_CHART}/${symbol}?interval=1d&range=5d`);
+      const r = await http.get(`${YAHOO_CHART}/${symbol}? interval=1d&range=5d`);
       const data = r.data.chart?.result?.[0];
-      if (! data) continue;
+      if (!data) continue;
 
-      const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
+      const closes = data.indicators.quote[0]. close.filter(n => typeof n === "number");
       if (closes.length < 2) continue;
 
       const currentPrice = closes.at(-1);
@@ -504,7 +504,7 @@ async function fetchEodTopStocks(limit = 6) {
   const g = await fetchSide("most_gainer_stocks");
   const l = await fetchSide("most_loser_stocks");
 
-  return { items: [... g.items, ...l.items] };
+  return { items: [... g. items, ...l.items] };
 }
 
 /* ------------------------------------------------------
@@ -543,7 +543,7 @@ app.get("/api/all-movers", async (req, res) => {
 
     let combined = [];
 
-    if (stocksRes.value?. items) combined.push(...stocksRes.value.items);
+    if (stocksRes.value?. items) combined. push(...stocksRes.value. items);
     if (cryptoRes.value) combined.push(...cryptoRes. value);
     if (fxRes. value) combined.push(...fxRes.value);
     if (comRes.value) combined.push(...comRes.value);
@@ -666,7 +666,7 @@ app.get("/api/forex-heatmap", async (req, res) => {
 ------------------------------------------------------ */
 app.get("/api/crypto-heatmap", async (req, res) => {
   try {
-    if (cryptoHeatmapCache && Date.now() - cryptoHeatmapCacheTime < HEATMAP_TTL)
+    if (cryptoHeatmapCache && Date. now() - cryptoHeatmapCacheTime < HEATMAP_TTL)
       return res.json(cryptoHeatmapCache);
 
     const cryptoSymbols = {
@@ -754,12 +754,12 @@ app.get("/api/economic-calendar", async (req, res) => {
 
     const today = new Date();
     const nextMonth = new Date(today);
-    nextMonth.setDate(today. getDate() + 30);
+    nextMonth.setDate(today.getDate() + 30);
     
     const fromDate = today.toISOString().split('T')[0];
     const toDate = nextMonth.toISOString().split('T')[0];
     
-    const url = `https://financialmodelingprep.com/api/v3/economic_calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_KEY}`;
+    const url = `https://financialmodelingprep.com/api/v3/economic_calendar? from=${fromDate}&to=${toDate}&apikey=${FMP_KEY}`;
     
     console.log("📅 Fetching economic calendar from FMP...");
     console.log(`📆 Date range: ${fromDate} to ${toDate}`);
@@ -835,7 +835,7 @@ app.get("/api/economic-calendar", async (req, res) => {
                                'France', 'Japan', 'China', 'Canada', 'Australia', 'South Africa'];
         
         const countryUpper = event.country.toUpperCase();
-        return majorCountries. some(c => 
+        return majorCountries.some(c => 
           countryUpper.includes(c. toUpperCase()) || 
           c.toUpperCase().includes(countryUpper)
         );
@@ -873,10 +873,195 @@ app.get("/api/economic-calendar", async (req, res) => {
       console.error("📍 FMP Response data:", err.response.data);
     }
     
-    res.status(500).json({ 
+    res. status(500).json({ 
       error: "Failed to fetch economic calendar",
       details: err.message 
     });
+  }
+});
+
+/* ------------------------------------------------------
+   JSE STOCKS (SOUTH AFRICA) - YAHOO FINANCE ✅
+------------------------------------------------------ */
+app. get("/api/jse-stocks", async (req, res) => {
+  try {
+    const JSE_SYMBOLS = {
+      "Naspers": "NPN. JO",
+      "Prosus": "PRX.JO",
+      "Anglo American": "AGL.JO",
+      "BHP Group": "BHP.JO",
+      "Standard Bank": "SBK.JO",
+      "FirstRand": "FSR.JO",
+      "MTN Group": "MTN.JO",
+      "Sasol": "SOL.JO",
+      "Shoprite": "SHP.JO",
+      "Capitec Bank": "CPI.JO",
+      "Sanlam": "SLM. JO",
+      "Nedbank": "NED.JO",
+      "Vodacom": "VOD.JO",
+      "Impala Platinum": "IMP.JO",
+      "Gold Fields": "GFI.JO"
+    };
+
+    const results = [];
+
+    for (const [name, symbol] of Object.entries(JSE_SYMBOLS)) {
+      try {
+        // ✅ Use Yahoo Finance instead of EODHD
+        const url = `${YAHOO_CHART}/${symbol}?interval=1d&range=5d`;
+        const r = await http.get(url);
+        const data = r.data.chart?.result?.[0];
+
+        if (! data) {
+          console.warn(`⚠️ No data for ${symbol}`);
+          continue;
+        }
+
+        const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
+
+        if (closes.length < 2) {
+          console. warn(`⚠️ Insufficient data for ${symbol}`);
+          continue;
+        }
+
+        const currentPrice = closes.at(-1);
+        const previousPrice = closes.at(-2);
+
+        // ✅ Validate numbers
+        if (isNaN(currentPrice) || isNaN(previousPrice) || previousPrice === 0) {
+          console. warn(`⚠️ Invalid prices for ${symbol}`);
+          continue;
+        }
+
+        const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
+
+        // ✅ Final NaN check
+        if (isNaN(pct)) {
+          console.warn(`⚠️ Calculated NaN for ${symbol}`);
+          continue;
+        }
+
+        results.push({
+          name,
+          symbol,
+          price:  `R ${currentPrice.toFixed(2)}`,
+          change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
+          trend: pct >= 0 ?  "positive" : "negative",
+          rawChange: pct,
+          currency: "ZAR"
+        });
+
+        console.log(`✅ JSE:  ${name} - R${currentPrice.toFixed(2)} (${pct.toFixed(2)}%)`);
+
+      } catch (err) {
+        console.warn(`⚠️ JSE stock error ${symbol}:`, err.message);
+      }
+
+      await sleep(150);
+    }
+
+    // Sort by absolute change (biggest movers first)
+    results.sort((a, b) => Math.abs(b.rawChange) - Math.abs(a.rawChange));
+
+    console.log(`✅ Loaded ${results.length} JSE stocks (${Object.keys(JSE_SYMBOLS).length - results.length} skipped due to errors)`);
+    
+    res.json(results);
+
+  } catch (err) {
+    console.error("❌ /api/jse-stocks error:", err.message);
+    res.status(500).json({ error: "Failed to fetch JSE stocks" });
+  }
+});
+
+/* ------------------------------------------------------
+   US STOCKS - WITH NaN PROTECTION (EODHD) ✅ UNCHANGED
+------------------------------------------------------ */
+app. get("/api/us-stocks", async (req, res) => {
+  try {
+    if (! EODHD_KEY) {
+      return res.status(500).json({ error: "EODHD API key not configured" });
+    }
+
+    const US_SYMBOLS = {
+      "Apple": "AAPL.US",
+      "Microsoft": "MSFT.US",
+      "Amazon": "AMZN.US",
+      "Google": "GOOGL.US",
+      "Tesla": "TSLA.US",
+      "NVIDIA": "NVDA.US",
+      "Meta": "META.US",
+      "JPMorgan": "JPM. US",
+      "Visa": "V.US",
+      "Coca-Cola": "KO.US",
+      "Johnson & Johnson": "JNJ. US",
+      "Walmart": "WMT.US",
+      "Mastercard": "MA.US",
+      "Pfizer": "PFE.US",
+      "Netflix": "NFLX.US"
+    };
+
+    const results = [];
+
+    for (const [name, symbol] of Object.entries(US_SYMBOLS)) {
+      try {
+        const r = await http.get(
+          `https://eodhd.com/api/real-time/${symbol}?api_token=${EODHD_KEY}&fmt=json`
+        );
+
+        // ✅ Validate data exists and is valid
+        if (!r.data) {
+          console.warn(`⚠️ No data for ${symbol}`);
+          continue;
+        }
+
+        const close = parseFloat(r.data.close);
+        const previousClose = parseFloat(r.data.previousClose);
+
+        // ✅ Check if values are valid numbers
+        if (isNaN(close) || isNaN(previousClose) || previousClose === 0) {
+          console.warn(`⚠️ Invalid data for ${symbol}:  close=${close}, prev=${previousClose}`);
+          continue;
+        }
+
+        const currentPrice = close;
+        const previousPrice = previousClose;
+        const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
+
+        // ✅ Final NaN check
+        if (isNaN(pct)) {
+          console. warn(`⚠️ Calculated NaN for ${symbol}`);
+          continue;
+        }
+
+        results.push({
+          name,
+          symbol,
+          price: `$${currentPrice.toFixed(2)}`,
+          change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
+          trend: pct >= 0 ? "positive" : "negative",
+          rawChange: pct,
+          currency:  "USD"
+        });
+
+        console.log(`✅ US: ${name} - ${pct.toFixed(2)}%`);
+
+      } catch (err) {
+        console.warn(`⚠️ US stock error ${symbol}:`, err.message);
+      }
+
+      await sleep(100);
+    }
+
+    // Sort by absolute change
+    results.sort((a, b) => Math.abs(b.rawChange) - Math.abs(a.rawChange));
+
+    console.log(`✅ Loaded ${results.length} US stocks (${Object.keys(US_SYMBOLS).length - results.length} skipped due to errors)`);
+    
+    res.json(results);
+
+  } catch (err) {
+    console.error("❌ /api/us-stocks error:", err.message);
+    res.status(500).json({ error: "Failed to fetch US stocks" });
   }
 });
 

@@ -1066,6 +1066,69 @@ app. get("/api/us-stocks", async (req, res) => {
 });
 
 /* ------------------------------------------------------
+   SA MARKETS (SOUTH AFRICA) - COMBINED DATA
+------------------------------------------------------ */
+app.get("/api/sa-markets", async (req, res) => {
+  try {
+    // Fetch JSE indices
+    const indicesResp = await http.get(`http://localhost:${PORT}/api/indices`).catch(() => ({ data: [] }));
+    const allIndices = indicesResp. data || [];
+    
+    // Filter JSE indices
+    const jseIndices = allIndices.filter(idx => 
+      idx.name.includes("JSE") || idx.symbol.includes(". JO")
+    );
+
+    // Fetch forex (for USD/ZAR, EUR/ZAR)
+    const forexResp = await http.get(`http://localhost:${PORT}/api/forex`).catch(() => ({ data: [] }));
+    const allForex = forexResp.data || [];
+    
+    // Filter ZAR pairs
+    const zarForex = allForex.filter(fx => 
+      fx.pair. includes("ZAR")
+    );
+
+    // Fetch commodities
+    const commoditiesResp = await http.get(`http://localhost:${PORT}/api/commodities`).catch(() => ({ data: [] }));
+    const allCommodities = commoditiesResp.data || [];
+
+    // Get USD/ZAR rate for conversion
+    const usdZarPair = zarForex.find(fx => fx.pair === "USD/ZAR");
+    const usdZarRate = usdZarPair ? usdZarPair.price : 18.75; // Fallback
+
+    // Convert commodities to ZAR
+    const commoditiesInZAR = allCommodities.map(comm => {
+      const priceUSD = parseFloat(comm.price);
+      const priceZAR = priceUSD * usdZarRate;
+      
+      return {
+        name: comm.name,
+        priceZAR:  `R ${priceZAR.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`,
+        change: comm.change,
+        rawChange: comm.rawChange
+      };
+    });
+
+    // Next SARB event (hardcoded for now - you can make this dynamic later)
+    const nextEvent = {
+      name: "SARB Interest Rate Decision",
+      date: "March 27, 2026"
+    };
+
+    res.json({
+      indices: jseIndices,
+      forex: zarForex,
+      commodities: commoditiesInZAR,
+      nextEvent: nextEvent
+    });
+
+  } catch (err) {
+    console.error("❌ /api/sa-markets error:", err. message);
+    res.status(500).json({ error: "Failed to fetch SA markets data" });
+  }
+});
+
+/* ------------------------------------------------------
    START SERVER
 ------------------------------------------------------ */
 app.listen(PORT, () => {

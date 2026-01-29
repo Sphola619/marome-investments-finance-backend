@@ -16,7 +16,7 @@ app.use(cors({
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders:  ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
@@ -70,15 +70,17 @@ const FOREX_PAIRS = [
   "USD/CHF"
 ];
 
-const COMMODITY_SYMBOLS = {
-  Gold: "GC=F",
-  Silver: "SI=F",
-  "Crude Oil": "CL=F"
+// ✅ EODHD Commodity ETFs (Tracks Spot Prices Closely)
+const EODHD_COMMODITIES = {
+  "Gold": "GLD.US",      // SPDR Gold Shares ETF (tracks gold spot)
+  "Silver": "SLV.US",    // iShares Silver Trust ETF (tracks silver spot)
+  "Platinum": "PPLT.US", // Aberdeen Standard Platinum ETF
+  "Crude Oil": "USO.US"  // United States Oil Fund ETF
 };
 
 const INDEX_SYMBOLS = {
   "S&P 500": "^GSPC",           // ✅ S&P 500 Index
-  "NASDAQ 100":  "^NDX",         // ✅ NASDAQ-100 Index
+  "NASDAQ 100": "^NDX",         // ✅ NASDAQ-100 Index
   "Dow Jones": "^DJI",          // ✅ Dow Jones Industrial Average
   "JSE Top 40": "^J200.JO"      // ✅ JSE Top 40 (correct symbol)
 };
@@ -97,7 +99,7 @@ const YAHOO_FOREX_SYMBOLS = {
 const YAHOO_HEATMAP_SYMBOLS = {
   "EUR/USD": "EURUSD=X",
   "GBP/USD": "GBPUSD=X",
-  "USD/JPY":  "USDJPY=X",
+  "USD/JPY": "USDJPY=X",
   "USD/ZAR": "USDZAR=X",
   "EUR/ZAR": "EURZAR=X",     // ✅ NEW - SA Focus
   "GBP/ZAR": "GBPZAR=X",     // ✅ NEW - SA Focus
@@ -126,7 +128,7 @@ const formatMover = (name, symbol, pct, type) => ({
   performance: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
   rawChange: pct,
   type,
-  trend: pct >= 0 ?  "positive" : "negative"
+  trend: pct >= 0 ? "positive" : "negative"
 });
 
 /* ------------------------------------------------------
@@ -139,7 +141,7 @@ app.get("/api/news", async (req, res) => {
     );
     res.json(r.data);
   } catch (err) {
-    console.error("❌ /api/news error:", err. message);
+    console.error("❌ /api/news error:", err.message);
     res.status(500).json({ error: "Failed to fetch news" });
   }
 });
@@ -157,13 +159,13 @@ app.get("/api/indices", async (req, res) => {
     for (const [name, symbol] of Object.entries(INDEX_SYMBOLS)) {
       try {
         const r = await http.get(`${YAHOO_CHART}/${symbol}?interval=1d&range=5d`);
-        const data = r.data.chart?. result?.[0];
-        if (! data) continue;
+        const data = r.data.chart?.result?.[0];
+        if (!data) continue;
 
-        const closes = data. indicators.quote[0].close. filter(n => typeof n === "number");
+        const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
         if (closes.length < 2) continue;
 
-        const pct = ((closes. at(-1) - closes.at(-2)) / closes.at(-2)) * 100;
+        const pct = ((closes.at(-1) - closes.at(-2)) / closes.at(-2)) * 100;
 
         results.push({
           name,
@@ -184,7 +186,7 @@ app.get("/api/indices", async (req, res) => {
     res.json(results);
 
   } catch (err) {
-    console.error("❌ /api/indices error:", err. message);
+    console.error("❌ /api/indices error:", err.message);
     res.status(500).json({ error: "Failed to fetch indices" });
   }
 });
@@ -203,7 +205,7 @@ app.get("/api/forex", async (req, res) => {
       try {
         const r = await http.get(`${YAHOO_CHART}/${symbol}?interval=1d&range=5d`);
         const data = r.data.chart?.result?.[0];
-        if (! data) continue;
+        if (!data) continue;
 
         const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
         if (closes.length < 2) continue;
@@ -214,8 +216,9 @@ app.get("/api/forex", async (req, res) => {
           pair,
           name: pair,
           change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
-          trend: pct >= 0 ?  "positive" : "negative",
-          price: closes.at(-1)
+          trend: pct >= 0 ? "positive" : "negative",
+          price: closes.at(-1),
+          rawChange: pct
         });
 
       } catch (err) {
@@ -240,16 +243,15 @@ app.get("/api/forex", async (req, res) => {
 ------------------------------------------------------ */
 app.get("/api/forex-strength", async (req, res) => {
   try {
-    // Use internal call on Render
     const r = await http.get(`http://localhost:${PORT}/api/forex`).catch(() => null);
     const data = r?.data || [];
 
-    const pairCount = { USD: 0, EUR: 0, GBP: 0, JPY: 0, AUD: 0, CHF:  0, ZAR: 0 };
-    const strength = { USD: 0, EUR: 0, GBP: 0, JPY: 0, AUD: 0, CHF:  0, ZAR: 0 };
+    const pairCount = { USD: 0, EUR: 0, GBP: 0, JPY: 0, AUD: 0, CHF: 0, ZAR: 0 };
+    const strength = { USD: 0, EUR: 0, GBP: 0, JPY: 0, AUD: 0, CHF: 0, ZAR: 0 };
 
     data.forEach(item => {
       const pct = parseFloat(item.change);
-      const [base, quote] = item.pair. split("/");
+      const [base, quote] = item.pair.split("/");
 
       pairCount[base]++;
       pairCount[quote]++;
@@ -284,13 +286,13 @@ app.get("/api/forex-strength", async (req, res) => {
     res.json(result);
 
   } catch (err) {
-    console.error("❌ /api/forex-strength error:", err. message);
+    console.error("❌ /api/forex-strength error:", err.message);
     res.status(500).json({ error: "Failed to compute strength" });
   }
 });
 
 /* ------------------------------------------------------
-   COMMODITIES
+   COMMODITIES - USING ETFs (EODHD) ✅ FIXED
 ------------------------------------------------------ */
 app.get("/api/commodities", async (req, res) => {
   try {
@@ -299,39 +301,77 @@ app.get("/api/commodities", async (req, res) => {
 
     const results = [];
 
-    for (const [name, symbol] of Object.entries(COMMODITY_SYMBOLS)) {
+    // ✅ Map ETF symbols to friendly display names
+    const displaySymbols = {
+      "GLD.US": "Gold",
+      "SLV.US": "Silver",
+      "PPLT.US": "Platinum",
+      "USO.US": "Crude Oil"
+    };
+
+    for (const [name, symbol] of Object.entries(EODHD_COMMODITIES)) {
       try {
-        const url = `${YAHOO_CHART}/${symbol}?interval=1d&range=5d`;
+        const url = `https://eodhd.com/api/real-time/${symbol}?api_token=${EODHD_KEY}&fmt=json`;
         const r = await http.get(url);
-        const data = r.data.chart?.result?.[0];
-        if (!data) continue;
 
-        const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
-        if (closes.length < 2) continue;
+        if (!r.data) {
+          console.warn(`⚠️ No data for ${name} (${symbol})`);
+          continue;
+        }
 
-        const currentPrice = closes.at(-1);
-        const previousPrice = closes.at(-2);
-        const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
+        const close = parseFloat(r.data.close);
+        const previousClose = parseFloat(r.data.previousClose);
 
-        results. push({
+        if (isNaN(close) || isNaN(previousClose) || previousClose === 0) {
+          console.warn(`⚠️ Invalid data for ${name}: close=${close}, prev=${previousClose}`);
+          continue;
+        }
+
+        const pct = ((close - previousClose) / previousClose) * 100;
+
+        if (isNaN(pct)) {
+          console.warn(`⚠️ Calculated NaN for ${name}`);
+          continue;
+        }
+
+        // ✅ For display: convert ETF price to approximate spot equivalent
+        let displayPrice = close;
+        
+        // Approximate conversion factors (ETF → Spot)
+        if (name === "Gold") {
+          displayPrice = close * 10; // GLD shares ≈ 1/10th oz of gold
+        } else if (name === "Silver") {
+          displayPrice = close * 10; // SLV shares ≈ 1/10th oz of silver
+        } else if (name === "Platinum") {
+          displayPrice = close * 10; // PPLT shares ≈ 1/10th oz of platinum
+        }
+        // Crude Oil (USO) already shows per-barrel equivalent
+
+        results.push({
           name,
-          symbol,
+          symbol: name, // Display commodity name, not ETF ticker
           change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
           trend: pct >= 0 ? "positive" : "negative",
-          price:  currentPrice. toFixed(2),
+          price: displayPrice.toFixed(2),
           rawChange: pct
         });
 
+        console.log(`✅ ${name}: $${displayPrice.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`);
+
       } catch (err) {
-        console.warn(`⚠️ Commodity fetch error for ${name}:`, err.message);
+        console.warn(`⚠️ ${name} fetch error:`, err.message);
       }
 
-      await sleep(150);
+      await sleep(200);
     }
 
+    results.sort((a, b) => Math.abs(b.rawChange) - Math.abs(a.rawChange));
+
     commoditiesCache = results;
-    commoditiesCacheTime = Date. now();
+    commoditiesCacheTime = Date.now();
     res.json(results);
+
+    console.log(`✅ Loaded ${results.length} commodities (ETF-based)`);
 
   } catch (err) {
     console.error("❌ /api/commodities error:", err.message);
@@ -371,7 +411,7 @@ app.get("/api/crypto", async (req, res) => {
         const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
         if (closes.length < 2) continue;
 
-        const currentPrice = closes. at(-1);
+        const currentPrice = closes.at(-1);
         const previousPrice = closes.at(-2);
         const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
 
@@ -396,7 +436,7 @@ app.get("/api/crypto", async (req, res) => {
     res.json(results);
 
   } catch (err) {
-    console.error("❌ /api/crypto error:", err. message);
+    console.error("❌ /api/crypto error:", err.message);
     res.status(500).json({ error: "Failed to fetch crypto" });
   }
 });
@@ -410,7 +450,7 @@ async function fetchEodCryptoMovers() {
     ETH: "ETH-USD",
     XRP: "XRP-USD",
     SOL: "SOL-USD",
-    ADA:  "ADA-USD"
+    ADA: "ADA-USD"
   };
 
   const items = [];
@@ -419,7 +459,7 @@ async function fetchEodCryptoMovers() {
     try {
       const r = await http.get(`${YAHOO_CHART}/${symbol}?interval=1d&range=5d`);
       const data = r.data.chart?.result?.[0];
-      if (! data) continue;
+      if (!data) continue;
 
       const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
       if (closes.length < 2) continue;
@@ -441,31 +481,34 @@ async function fetchEodCryptoMovers() {
 }
 
 /* ------------------------------------------------------
-   COMMODITY MOVERS
+   COMMODITY MOVERS - ✅ FIXED (USING ETFs)
 ------------------------------------------------------ */
 async function fetchCommodityMovers() {
   const items = [];
 
-  for (const [name, symbol] of Object.entries(COMMODITY_SYMBOLS)) {
+  for (const [name, symbol] of Object.entries(EODHD_COMMODITIES)) {
     try {
-      const r = await http.get(`${YAHOO_CHART}/${symbol}? interval=1d&range=5d`);
-      const data = r.data.chart?.result?.[0];
-      if (!data) continue;
+      const url = `https://eodhd.com/api/real-time/${symbol}?api_token=${EODHD_KEY}&fmt=json`;
+      const r = await http.get(url);
 
-      const closes = data.indicators.quote[0]. close.filter(n => typeof n === "number");
-      if (closes.length < 2) continue;
+      if (!r.data) continue;
 
-      const currentPrice = closes.at(-1);
-      const previousPrice = closes.at(-2);
-      const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
+      const close = parseFloat(r.data.close);
+      const previousClose = parseFloat(r.data.previousClose);
 
-      items.push(formatMover(name, symbol, pct, "Commodity"));
+      if (isNaN(close) || isNaN(previousClose) || previousClose === 0) continue;
+
+      const pct = ((close - previousClose) / previousClose) * 100;
+
+      if (isNaN(pct)) continue;
+
+      items.push(formatMover(name, name, pct, "Commodity"));
 
     } catch (err) {
       console.warn("⚠️ Commodity mover error:", name, err.message);
     }
 
-    await sleep(150);
+    await sleep(200);
   }
 
   return items;
@@ -475,12 +518,12 @@ async function fetchCommodityMovers() {
    STOCK MOVERS
 ------------------------------------------------------ */
 async function fetchEodTopStocks(limit = 6) {
-  if (! EODHD_KEY) return { items: [] };
+  if (!EODHD_KEY) return { items: [] };
 
   const fetchSide = async (side) => {
     try {
       const r = await http.get(
-        `https://eodhd.com/api/top? api_token=${EODHD_KEY}&screener=${side}&limit=${limit}&fmt=json`
+        `https://eodhd.com/api/top?api_token=${EODHD_KEY}&screener=${side}&limit=${limit}&fmt=json`
       );
 
       if (!Array.isArray(r.data)) return { items: [] };
@@ -489,7 +532,7 @@ async function fetchEodTopStocks(limit = 6) {
         formatMover(
           it.name || it.code,
           it.code,
-          parseFloat(it.change_percent ??  0),
+          parseFloat(it.change_percent ?? 0),
           "Stock"
         )
       );
@@ -504,7 +547,7 @@ async function fetchEodTopStocks(limit = 6) {
   const g = await fetchSide("most_gainer_stocks");
   const l = await fetchSide("most_loser_stocks");
 
-  return { items: [... g. items, ...l.items] };
+  return { items: [...g.items, ...l.items] };
 }
 
 /* ------------------------------------------------------
@@ -512,12 +555,12 @@ async function fetchEodTopStocks(limit = 6) {
 ------------------------------------------------------ */
 async function fetchForexMovers() {
   try {
-    const url = `https://api.twelvedata.com/quote? symbol=${FOREX_PAIRS. join(",")}&apikey=${TWELVEDATA_KEY}`;
+    const url = `https://api.twelvedata.com/quote?symbol=${FOREX_PAIRS.join(",")}&apikey=${TWELVEDATA_KEY}`;
     const r = await http.get(url);
 
     return FOREX_PAIRS.map(pair => {
       const d = r.data[pair];
-      if (!d?. percent_change) return null;
+      if (!d?.percent_change) return null;
       return formatMover(pair, pair, parseFloat(d.percent_change), "Forex");
     }).filter(Boolean);
 
@@ -543,19 +586,19 @@ app.get("/api/all-movers", async (req, res) => {
 
     let combined = [];
 
-    if (stocksRes.value?. items) combined. push(...stocksRes.value. items);
-    if (cryptoRes.value) combined.push(...cryptoRes. value);
-    if (fxRes. value) combined.push(...fxRes.value);
+    if (stocksRes.value?.items) combined.push(...stocksRes.value.items);
+    if (cryptoRes.value) combined.push(...cryptoRes.value);
+    if (fxRes.value) combined.push(...fxRes.value);
     if (comRes.value) combined.push(...comRes.value);
 
     for (const [name, symbol] of Object.entries(INDEX_SYMBOLS)) {
       try {
         const r = await http.get(`${YAHOO_CHART}/${symbol}?interval=1d&range=5d`);
-        const data = r. data.chart?.result?.[0];
+        const data = r.data.chart?.result?.[0];
         if (!data) continue;
 
-        const closes = data. indicators.quote[0].close. filter(n => typeof n === "number");
-        if (closes. length < 2) continue;
+        const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
+        if (closes.length < 2) continue;
 
         const pct = ((closes.at(-1) - closes.at(-2)) / closes.at(-2)) * 100;
 
@@ -570,19 +613,19 @@ app.get("/api/all-movers", async (req, res) => {
 
     combined.forEach(item => {
       if (
-        ! map.has(item.symbol) ||
+        !map.has(item.symbol) ||
         Math.abs(item.rawChange) > Math.abs(map.get(item.symbol).rawChange)
       ) {
         map.set(item.symbol, item);
       }
     });
 
-    const sorted = [... map.values()]
+    const sorted = [...map.values()]
       .sort((a, b) => Math.abs(b.rawChange) - Math.abs(a.rawChange))
       .slice(0, 10);
 
     moversCache = sorted;
-    moversCacheTimestamp = Date. now();
+    moversCacheTimestamp = Date.now();
 
     res.json(sorted);
 
@@ -622,7 +665,7 @@ app.get("/api/forex-heatmap", async (req, res) => {
           const data = r.data.chart?.result?.[0];
 
           if (data) {
-            const closes = data.indicators.quote[0]. close.filter(n => typeof n === "number");
+            const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
 
             if (closes.length >= 2) {
               let compareIndex = -2;
@@ -633,7 +676,7 @@ app.get("/api/forex-heatmap", async (req, res) => {
 
               if (Math.abs(compareIndex) <= closes.length) {
                 const current = closes.at(-1);
-                const previous = closes. at(compareIndex);
+                const previous = closes.at(compareIndex);
                 pct = ((current - previous) / previous) * 100;
               }
             }
@@ -648,7 +691,7 @@ app.get("/api/forex-heatmap", async (req, res) => {
       }
 
       results[label] = tfResults;
-      console.log(`✅ Heatmap loaded for ${label}: `, tfResults);
+      console.log(`✅ Heatmap loaded for ${label}:`, tfResults);
     }
 
     heatmapCache = results;
@@ -666,7 +709,7 @@ app.get("/api/forex-heatmap", async (req, res) => {
 ------------------------------------------------------ */
 app.get("/api/crypto-heatmap", async (req, res) => {
   try {
-    if (cryptoHeatmapCache && Date. now() - cryptoHeatmapCacheTime < HEATMAP_TTL)
+    if (cryptoHeatmapCache && Date.now() - cryptoHeatmapCacheTime < HEATMAP_TTL)
       return res.json(cryptoHeatmapCache);
 
     const cryptoSymbols = {
@@ -676,7 +719,7 @@ app.get("/api/crypto-heatmap", async (req, res) => {
       SOL: "SOL-USD",
       ADA: "ADA-USD",
       DOGE: "DOGE-USD",
-      AVAX:  "AVAX-USD",
+      AVAX: "AVAX-USD",
       BNB: "BNB-USD",
       LTC: "LTC-USD"
     };
@@ -687,9 +730,9 @@ app.get("/api/crypto-heatmap", async (req, res) => {
 
       const timeframes = {
         "1h": { interval: "5m", range: "1d" },
-        "4h": { interval: "15m", range:  "5d" },
+        "4h": { interval: "15m", range: "5d" },
         "1d": { interval: "1d", range: "5d" },
-        "1w": { interval: "1d", range:  "1mo" }
+        "1w": { interval: "1d", range: "1mo" }
       };
 
       const tfResults = {};
@@ -703,7 +746,7 @@ app.get("/api/crypto-heatmap", async (req, res) => {
           const data = r.data.chart?.result?.[0];
 
           if (data) {
-            const closes = data.indicators. quote[0].close.filter(n => typeof n === "number");
+            const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
 
             if (closes.length >= 2) {
               let compareIndex = -2;
@@ -714,7 +757,7 @@ app.get("/api/crypto-heatmap", async (req, res) => {
 
               if (Math.abs(compareIndex) <= closes.length) {
                 const current = closes.at(-1);
-                const previous = closes. at(compareIndex);
+                const previous = closes.at(compareIndex);
                 pct = ((current - previous) / previous) * 100;
               }
             }
@@ -733,7 +776,7 @@ app.get("/api/crypto-heatmap", async (req, res) => {
     }
 
     cryptoHeatmapCache = results;
-    cryptoHeatmapCacheTime = Date. now();
+    cryptoHeatmapCacheTime = Date.now();
     res.json(results);
 
   } catch (err) {
@@ -759,7 +802,7 @@ app.get("/api/economic-calendar", async (req, res) => {
     const fromDate = today.toISOString().split('T')[0];
     const toDate = nextMonth.toISOString().split('T')[0];
     
-    const url = `https://financialmodelingprep.com/api/v3/economic_calendar? from=${fromDate}&to=${toDate}&apikey=${FMP_KEY}`;
+    const url = `https://financialmodelingprep.com/api/v3/economic_calendar?from=${fromDate}&to=${toDate}&apikey=${FMP_KEY}`;
     
     console.log("📅 Fetching economic calendar from FMP...");
     console.log(`📆 Date range: ${fromDate} to ${toDate}`);
@@ -778,8 +821,8 @@ app.get("/api/economic-calendar", async (req, res) => {
     
     const events = r.data
       .filter(event => {
-        if (! event.event || !event.country || !event.date) return false;
-        const eventDate = new Date(event. date);
+        if (!event.event || !event.country || !event.date) return false;
+        const eventDate = new Date(event.date);
         return eventDate >= todayMidnight;
       })
       .map(event => {
@@ -817,10 +860,10 @@ app.get("/api/economic-calendar", async (req, res) => {
         
         return {
           date: dateOnly,
-          time:  timeOnly,
+          time: timeOnly,
           country: event.country,
           event: event.event,
-          actual: event.actual !== null && event.actual !== undefined ?  event.actual : null,
+          actual: event.actual !== null && event.actual !== undefined ? event.actual : null,
           forecast: event.estimate !== null && event.estimate !== undefined ? event.estimate : null,
           previous: event.previous !== null && event.previous !== undefined ? event.previous : null,
           importance: importance,
@@ -836,7 +879,7 @@ app.get("/api/economic-calendar", async (req, res) => {
         
         const countryUpper = event.country.toUpperCase();
         return majorCountries.some(c => 
-          countryUpper.includes(c. toUpperCase()) || 
+          countryUpper.includes(c.toUpperCase()) || 
           c.toUpperCase().includes(countryUpper)
         );
       })
@@ -854,8 +897,8 @@ app.get("/api/economic-calendar", async (req, res) => {
         eventsByDate[e.date] = (eventsByDate[e.date] || 0) + 1;
       });
       
-      const dateList = Object.keys(eventsByDate).slice(0, 10).map(d => `${d}:  ${eventsByDate[d]}`);
-      console.log(`📊 Events distribution:  [${dateList.join(', ')}]`);
+      const dateList = Object.keys(eventsByDate).slice(0, 10).map(d => `${d}: ${eventsByDate[d]}`);
+      console.log(`📊 Events distribution: [${dateList.join(', ')}]`);
     } else {
       console.log("⚠️ No events found after filtering");
     }
@@ -873,7 +916,7 @@ app.get("/api/economic-calendar", async (req, res) => {
       console.error("📍 FMP Response data:", err.response.data);
     }
     
-    res. status(500).json({ 
+    res.status(500).json({ 
       error: "Failed to fetch economic calendar",
       details: err.message 
     });
@@ -883,10 +926,10 @@ app.get("/api/economic-calendar", async (req, res) => {
 /* ------------------------------------------------------
    JSE STOCKS (SOUTH AFRICA) - YAHOO FINANCE ✅
 ------------------------------------------------------ */
-app. get("/api/jse-stocks", async (req, res) => {
+app.get("/api/jse-stocks", async (req, res) => {
   try {
     const JSE_SYMBOLS = {
-      "Naspers": "NPN. JO",
+      "Naspers": "NPN.JO",
       "Prosus": "PRX.JO",
       "Anglo American": "AGL.JO",
       "BHP Group": "BHP.JO",
@@ -896,7 +939,7 @@ app. get("/api/jse-stocks", async (req, res) => {
       "Sasol": "SOL.JO",
       "Shoprite": "SHP.JO",
       "Capitec Bank": "CPI.JO",
-      "Sanlam": "SLM. JO",
+      "Sanlam": "SLM.JO",
       "Nedbank": "NED.JO",
       "Vodacom": "VOD.JO",
       "Impala Platinum": "IMP.JO",
@@ -907,12 +950,11 @@ app. get("/api/jse-stocks", async (req, res) => {
 
     for (const [name, symbol] of Object.entries(JSE_SYMBOLS)) {
       try {
-        // ✅ Use Yahoo Finance instead of EODHD
         const url = `${YAHOO_CHART}/${symbol}?interval=1d&range=5d`;
         const r = await http.get(url);
         const data = r.data.chart?.result?.[0];
 
-        if (! data) {
+        if (!data) {
           console.warn(`⚠️ No data for ${symbol}`);
           continue;
         }
@@ -920,22 +962,20 @@ app. get("/api/jse-stocks", async (req, res) => {
         const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
 
         if (closes.length < 2) {
-          console. warn(`⚠️ Insufficient data for ${symbol}`);
+          console.warn(`⚠️ Insufficient data for ${symbol}`);
           continue;
         }
 
         const currentPrice = closes.at(-1);
         const previousPrice = closes.at(-2);
 
-        // ✅ Validate numbers
         if (isNaN(currentPrice) || isNaN(previousPrice) || previousPrice === 0) {
-          console. warn(`⚠️ Invalid prices for ${symbol}`);
+          console.warn(`⚠️ Invalid prices for ${symbol}`);
           continue;
         }
 
         const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
 
-        // ✅ Final NaN check
         if (isNaN(pct)) {
           console.warn(`⚠️ Calculated NaN for ${symbol}`);
           continue;
@@ -944,14 +984,14 @@ app. get("/api/jse-stocks", async (req, res) => {
         results.push({
           name,
           symbol,
-          price:  `R ${currentPrice.toFixed(2)}`,
+          price: `R ${currentPrice.toFixed(2)}`,
           change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
-          trend: pct >= 0 ?  "positive" : "negative",
+          trend: pct >= 0 ? "positive" : "negative",
           rawChange: pct,
           currency: "ZAR"
         });
 
-        console.log(`✅ JSE:  ${name} - R${currentPrice.toFixed(2)} (${pct.toFixed(2)}%)`);
+        console.log(`✅ JSE: ${name} - R${currentPrice.toFixed(2)} (${pct.toFixed(2)}%)`);
 
       } catch (err) {
         console.warn(`⚠️ JSE stock error ${symbol}:`, err.message);
@@ -960,7 +1000,6 @@ app. get("/api/jse-stocks", async (req, res) => {
       await sleep(150);
     }
 
-    // Sort by absolute change (biggest movers first)
     results.sort((a, b) => Math.abs(b.rawChange) - Math.abs(a.rawChange));
 
     console.log(`✅ Loaded ${results.length} JSE stocks (${Object.keys(JSE_SYMBOLS).length - results.length} skipped due to errors)`);
@@ -974,11 +1013,11 @@ app. get("/api/jse-stocks", async (req, res) => {
 });
 
 /* ------------------------------------------------------
-   US STOCKS - WITH NaN PROTECTION (EODHD) ✅ UNCHANGED
+   US STOCKS - WITH NaN PROTECTION (EODHD) ✅
 ------------------------------------------------------ */
-app. get("/api/us-stocks", async (req, res) => {
+app.get("/api/us-stocks", async (req, res) => {
   try {
-    if (! EODHD_KEY) {
+    if (!EODHD_KEY) {
       return res.status(500).json({ error: "EODHD API key not configured" });
     }
 
@@ -990,10 +1029,10 @@ app. get("/api/us-stocks", async (req, res) => {
       "Tesla": "TSLA.US",
       "NVIDIA": "NVDA.US",
       "Meta": "META.US",
-      "JPMorgan": "JPM. US",
+      "JPMorgan": "JPM.US",
       "Visa": "V.US",
       "Coca-Cola": "KO.US",
-      "Johnson & Johnson": "JNJ. US",
+      "Johnson & Johnson": "JNJ.US",
       "Walmart": "WMT.US",
       "Mastercard": "MA.US",
       "Pfizer": "PFE.US",
@@ -1008,7 +1047,6 @@ app. get("/api/us-stocks", async (req, res) => {
           `https://eodhd.com/api/real-time/${symbol}?api_token=${EODHD_KEY}&fmt=json`
         );
 
-        // ✅ Validate data exists and is valid
         if (!r.data) {
           console.warn(`⚠️ No data for ${symbol}`);
           continue;
@@ -1017,9 +1055,8 @@ app. get("/api/us-stocks", async (req, res) => {
         const close = parseFloat(r.data.close);
         const previousClose = parseFloat(r.data.previousClose);
 
-        // ✅ Check if values are valid numbers
         if (isNaN(close) || isNaN(previousClose) || previousClose === 0) {
-          console.warn(`⚠️ Invalid data for ${symbol}:  close=${close}, prev=${previousClose}`);
+          console.warn(`⚠️ Invalid data for ${symbol}: close=${close}, prev=${previousClose}`);
           continue;
         }
 
@@ -1027,9 +1064,8 @@ app. get("/api/us-stocks", async (req, res) => {
         const previousPrice = previousClose;
         const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
 
-        // ✅ Final NaN check
         if (isNaN(pct)) {
-          console. warn(`⚠️ Calculated NaN for ${symbol}`);
+          console.warn(`⚠️ Calculated NaN for ${symbol}`);
           continue;
         }
 
@@ -1040,7 +1076,7 @@ app. get("/api/us-stocks", async (req, res) => {
           change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
           trend: pct >= 0 ? "positive" : "negative",
           rawChange: pct,
-          currency:  "USD"
+          currency: "USD"
         });
 
         console.log(`✅ US: ${name} - ${pct.toFixed(2)}%`);
@@ -1052,7 +1088,6 @@ app. get("/api/us-stocks", async (req, res) => {
       await sleep(100);
     }
 
-    // Sort by absolute change
     results.sort((a, b) => Math.abs(b.rawChange) - Math.abs(a.rawChange));
 
     console.log(`✅ Loaded ${results.length} US stocks (${Object.keys(US_SYMBOLS).length - results.length} skipped due to errors)`);
@@ -1070,46 +1105,38 @@ app. get("/api/us-stocks", async (req, res) => {
 ------------------------------------------------------ */
 app.get("/api/sa-markets", async (req, res) => {
   try {
-    // Fetch JSE indices
     const indicesResp = await http.get(`http://localhost:${PORT}/api/indices`).catch(() => ({ data: [] }));
-    const allIndices = indicesResp. data || [];
+    const allIndices = indicesResp.data || [];
     
-    // Filter JSE indices
     const jseIndices = allIndices.filter(idx => 
-      idx.name.includes("JSE") || idx.symbol.includes(". JO")
+      idx.name.includes("JSE") || idx.symbol.includes(".JO")
     );
 
-    // Fetch forex (for USD/ZAR, EUR/ZAR)
     const forexResp = await http.get(`http://localhost:${PORT}/api/forex`).catch(() => ({ data: [] }));
     const allForex = forexResp.data || [];
     
-    // Filter ZAR pairs
     const zarForex = allForex.filter(fx => 
-      fx.pair. includes("ZAR")
+      fx.pair.includes("ZAR")
     );
 
-    // Fetch commodities
     const commoditiesResp = await http.get(`http://localhost:${PORT}/api/commodities`).catch(() => ({ data: [] }));
     const allCommodities = commoditiesResp.data || [];
 
-    // Get USD/ZAR rate for conversion
     const usdZarPair = zarForex.find(fx => fx.pair === "USD/ZAR");
-    const usdZarRate = usdZarPair ? usdZarPair.price : 18.75; // Fallback
+    const usdZarRate = usdZarPair ? usdZarPair.price : 18.75;
 
-    // Convert commodities to ZAR
     const commoditiesInZAR = allCommodities.map(comm => {
       const priceUSD = parseFloat(comm.price);
       const priceZAR = priceUSD * usdZarRate;
       
       return {
         name: comm.name,
-        priceZAR:  `R ${priceZAR.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`,
+        priceZAR: `R ${priceZAR.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`,
         change: comm.change,
         rawChange: comm.rawChange
       };
     });
 
-    // Next SARB event (hardcoded for now - you can make this dynamic later)
     const nextEvent = {
       name: "SARB Interest Rate Decision",
       date: "March 27, 2026"
@@ -1123,7 +1150,7 @@ app.get("/api/sa-markets", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ /api/sa-markets error:", err. message);
+    console.error("❌ /api/sa-markets error:", err.message);
     res.status(500).json({ error: "Failed to fetch SA markets data" });
   }
 });

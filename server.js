@@ -54,6 +54,8 @@ let cryptoHeatmapCache = null;
 let cryptoHeatmapCacheTime = 0;
 let calendarCache = null;
 let calendarCacheTime = 0;
+let newsCache = null;
+let newsCacheTime = 0;
 
 /* ------------------------------------------------------
    SYMBOLS
@@ -64,25 +66,25 @@ const FOREX_PAIRS = [
   "GBP/USD",
   "USD/JPY",
   "USD/ZAR",
-  "EUR/ZAR",     // ✅ NEW - SA Focus
-  "GBP/ZAR",     // ✅ NEW - SA Focus
+  "EUR/ZAR",
+  "GBP/ZAR",
   "AUD/USD",
   "USD/CHF"
 ];
 
-// ✅ EODHD Commodity ETFs (Tracks Spot Prices Closely)
-const EODHD_COMMODITIES = {
-  "Gold": "GLD.US",      // SPDR Gold Shares ETF (tracks gold spot)
-  "Silver": "SLV.US",    // iShares Silver Trust ETF (tracks silver spot)
-  "Platinum": "PPLT.US", // Aberdeen Standard Platinum ETF
-  "Crude Oil": "USO.US"  // United States Oil Fund ETF
+// ✅ Yahoo Finance Commodity Futures (Back to Original)
+const YAHOO_COMMODITY_SYMBOLS = {
+  "Gold": "GC=F",        // Gold Futures
+  "Silver": "SI=F",      // Silver Futures
+  "Platinum": "PL=F",    // Platinum Futures
+  "Crude Oil": "CL=F"    // Crude Oil Futures
 };
 
 const INDEX_SYMBOLS = {
-  "S&P 500": "^GSPC",           // ✅ S&P 500 Index
-  "NASDAQ 100": "^NDX",         // ✅ NASDAQ-100 Index
-  "Dow Jones": "^DJI",          // ✅ Dow Jones Industrial Average
-  "JSE Top 40": "^J200.JO"      // ✅ JSE Top 40 (correct symbol)
+  "S&P 500": "^GSPC",
+  "NASDAQ 100": "^NDX",
+  "Dow Jones": "^DJI",
+  "JSE Top 40": "^J200.JO"
 };
 
 const YAHOO_FOREX_SYMBOLS = {
@@ -90,24 +92,26 @@ const YAHOO_FOREX_SYMBOLS = {
   "GBP/USD": "GBPUSD=X",
   "USD/JPY": "USDJPY=X",
   "USD/ZAR": "USDZAR=X",
-  "EUR/ZAR": "EURZAR=X",     // ✅ NEW - SA Focus
-  "GBP/ZAR": "GBPZAR=X",     // ✅ NEW - SA Focus
+  "EUR/ZAR": "EURZAR=X",
+  "GBP/ZAR": "GBPZAR=X",
   "AUD/USD": "AUDUSD=X",
   "USD/CHF": "USDCHF=X"
 };
 
+// ✅ HEATMAP: Use ETFs for commodities (they have intraday data)
 const YAHOO_HEATMAP_SYMBOLS = {
   "EUR/USD": "EURUSD=X",
   "GBP/USD": "GBPUSD=X",
   "USD/JPY": "USDJPY=X",
   "USD/ZAR": "USDZAR=X",
-  "EUR/ZAR": "EURZAR=X",     // ✅ NEW - SA Focus
-  "GBP/ZAR": "GBPZAR=X",     // ✅ NEW - SA Focus
+  "EUR/ZAR": "EURZAR=X",
+  "GBP/ZAR": "GBPZAR=X",
   "AUD/USD": "AUDUSD=X",
   "USD/CHF": "USDCHF=X",
-  Gold: "GC=F",
-  Silver: "SI=F",
-  "Crude Oil": "CL=F"
+  Gold: "GLD",
+  Silver: "SLV",
+  Platinum: "PPLT",
+  "Crude Oil": "USO"
 };
 
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
@@ -116,7 +120,7 @@ const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
    HELPERS
 ------------------------------------------------------ */
 const http = axios.create({
-  timeout: 0,
+  timeout: 10000,
   headers: { "User-Agent": "MaromeBot/1.0" }
 });
 
@@ -132,16 +136,41 @@ const formatMover = (name, symbol, pct, type) => ({
 });
 
 /* ------------------------------------------------------
-   NEWS
+   NEWS ✅ FIXED
 ------------------------------------------------------ */
 app.get("/api/news", async (req, res) => {
   try {
+    // Check cache (5 minute cache for news)
+    if (newsCache && Date.now() - newsCacheTime < 5 * 60 * 1000) {
+      console.log("✅ Using cached news data");
+      return res.json(newsCache);
+    }
+
+    console.log("📰 Fetching news from Finnhub...");
+    
     const r = await http.get(
       `https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_KEY}`
     );
+
+    if (!r.data || !Array.isArray(r.data)) {
+      console.error("❌ Invalid news response from Finnhub");
+      return res.status(500).json({ error: "Failed to fetch news" });
+    }
+
+    console.log(`✅ Loaded ${r.data.length} news articles`);
+
+    newsCache = r.data;
+    newsCacheTime = Date.now();
+
     res.json(r.data);
   } catch (err) {
     console.error("❌ /api/news error:", err.message);
+    
+    if (err.response) {
+      console.error("📍 Finnhub Response status:", err.response.status);
+      console.error("📍 Finnhub Response data:", err.response.data);
+    }
+    
     res.status(500).json({ error: "Failed to fetch news" });
   }
 });
@@ -292,7 +321,7 @@ app.get("/api/forex-strength", async (req, res) => {
 });
 
 /* ------------------------------------------------------
-   COMMODITIES - USING ETFs (EODHD) ✅ FIXED
+   COMMODITIES - YAHOO FINANCE FUTURES ✅ BACK TO ORIGINAL
 ------------------------------------------------------ */
 app.get("/api/commodities", async (req, res) => {
   try {
@@ -301,62 +330,49 @@ app.get("/api/commodities", async (req, res) => {
 
     const results = [];
 
-    // ✅ Map ETF symbols to friendly display names
-    const displaySymbols = {
-      "GLD.US": "Gold",
-      "SLV.US": "Silver",
-      "PPLT.US": "Platinum",
-      "USO.US": "Crude Oil"
-    };
-
-    for (const [name, symbol] of Object.entries(EODHD_COMMODITIES)) {
+    for (const [name, symbol] of Object.entries(YAHOO_COMMODITY_SYMBOLS)) {
       try {
-        const url = `https://eodhd.com/api/real-time/${symbol}?api_token=${EODHD_KEY}&fmt=json`;
+        const url = `${YAHOO_CHART}/${symbol}?interval=1d&range=5d`;
         const r = await http.get(url);
+        const data = r.data.chart?.result?.[0];
 
-        if (!r.data) {
+        if (!data) {
           console.warn(`⚠️ No data for ${name} (${symbol})`);
           continue;
         }
 
-        const close = parseFloat(r.data.close);
-        const previousClose = parseFloat(r.data.previousClose);
+        const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
 
-        if (isNaN(close) || isNaN(previousClose) || previousClose === 0) {
-          console.warn(`⚠️ Invalid data for ${name}: close=${close}, prev=${previousClose}`);
+        if (closes.length < 2) {
+          console.warn(`⚠️ Insufficient data for ${name}`);
           continue;
         }
 
-        const pct = ((close - previousClose) / previousClose) * 100;
+        const currentPrice = closes.at(-1);
+        const previousPrice = closes.at(-2);
+
+        if (isNaN(currentPrice) || isNaN(previousPrice) || previousPrice === 0) {
+          console.warn(`⚠️ Invalid prices for ${name}`);
+          continue;
+        }
+
+        const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
 
         if (isNaN(pct)) {
           console.warn(`⚠️ Calculated NaN for ${name}`);
           continue;
         }
 
-        // ✅ For display: convert ETF price to approximate spot equivalent
-        let displayPrice = close;
-        
-        // Approximate conversion factors (ETF → Spot)
-        if (name === "Gold") {
-          displayPrice = close * 10; // GLD shares ≈ 1/10th oz of gold
-        } else if (name === "Silver") {
-          displayPrice = close * 10; // SLV shares ≈ 1/10th oz of silver
-        } else if (name === "Platinum") {
-          displayPrice = close * 10; // PPLT shares ≈ 1/10th oz of platinum
-        }
-        // Crude Oil (USO) already shows per-barrel equivalent
-
         results.push({
           name,
-          symbol: name, // Display commodity name, not ETF ticker
+          symbol: name,
           change: `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`,
           trend: pct >= 0 ? "positive" : "negative",
-          price: displayPrice.toFixed(2),
+          price: currentPrice.toFixed(2),
           rawChange: pct
         });
 
-        console.log(`✅ ${name}: $${displayPrice.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`);
+        console.log(`✅ ${name}: $${currentPrice.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`);
 
       } catch (err) {
         console.warn(`⚠️ ${name} fetch error:`, err.message);
@@ -371,7 +387,7 @@ app.get("/api/commodities", async (req, res) => {
     commoditiesCacheTime = Date.now();
     res.json(results);
 
-    console.log(`✅ Loaded ${results.length} commodities (ETF-based)`);
+    console.log(`✅ Loaded ${results.length} commodities (Yahoo Futures)`);
 
   } catch (err) {
     console.error("❌ /api/commodities error:", err.message);
@@ -481,24 +497,28 @@ async function fetchEodCryptoMovers() {
 }
 
 /* ------------------------------------------------------
-   COMMODITY MOVERS - ✅ FIXED (USING ETFs)
+   COMMODITY MOVERS - YAHOO FUTURES ✅ BACK TO ORIGINAL
 ------------------------------------------------------ */
 async function fetchCommodityMovers() {
   const items = [];
 
-  for (const [name, symbol] of Object.entries(EODHD_COMMODITIES)) {
+  for (const [name, symbol] of Object.entries(YAHOO_COMMODITY_SYMBOLS)) {
     try {
-      const url = `https://eodhd.com/api/real-time/${symbol}?api_token=${EODHD_KEY}&fmt=json`;
+      const url = `${YAHOO_CHART}/${symbol}?interval=1d&range=5d`;
       const r = await http.get(url);
+      const data = r.data.chart?.result?.[0];
 
-      if (!r.data) continue;
+      if (!data) continue;
 
-      const close = parseFloat(r.data.close);
-      const previousClose = parseFloat(r.data.previousClose);
+      const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
+      if (closes.length < 2) continue;
 
-      if (isNaN(close) || isNaN(previousClose) || previousClose === 0) continue;
+      const currentPrice = closes.at(-1);
+      const previousPrice = closes.at(-2);
 
-      const pct = ((close - previousClose) / previousClose) * 100;
+      if (isNaN(currentPrice) || isNaN(previousPrice) || previousPrice === 0) continue;
+
+      const pct = ((currentPrice - previousPrice) / previousPrice) * 100;
 
       if (isNaN(pct)) continue;
 

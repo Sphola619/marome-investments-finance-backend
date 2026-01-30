@@ -10,9 +10,9 @@ const app = express();
 ------------------------------------------------------ */
 app.use(cors({
   origin: [
-    'http://localhost:5500',                                    // Local development
-    'http://127.0.0.1:5500',                                    // Local development  
-    'https://marome-investments-finance.vercel.app',            // ✅ Vercel URL
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'https://marome-investments-finance.vercel.app',
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -37,6 +37,7 @@ const MOVERS_CACHE_TTL = 2 * 60 * 1000;
 const GENERIC_TTL = 60 * 1000;
 const HEATMAP_TTL = 5 * 60 * 1000;
 const CALENDAR_TTL = 6 * 60 * 60 * 1000;
+const CORRELATION_TTL = 60 * 60 * 1000; // 1 hour
 
 let moversCache = null;
 let moversCacheTimestamp = 0;
@@ -56,6 +57,8 @@ let calendarCache = null;
 let calendarCacheTime = 0;
 let newsCache = null;
 let newsCacheTime = 0;
+let correlationCache = {};
+let correlationCacheTime = 0;
 
 /* ------------------------------------------------------
    SYMBOLS
@@ -72,12 +75,11 @@ const FOREX_PAIRS = [
   "USD/CHF"
 ];
 
-// ✅ Yahoo Finance Commodity Futures (Back to Original)
 const YAHOO_COMMODITY_SYMBOLS = {
-  "Gold": "GC=F",        // Gold Futures
-  "Silver": "SI=F",      // Silver Futures
-  "Platinum": "PL=F",    // Platinum Futures
-  "Crude Oil": "CL=F"    // Crude Oil Futures
+  "Gold": "GC=F",
+  "Silver": "SI=F",
+  "Platinum": "PL=F",
+  "Crude Oil": "CL=F"
 };
 
 const INDEX_SYMBOLS = {
@@ -98,7 +100,6 @@ const YAHOO_FOREX_SYMBOLS = {
   "USD/CHF": "USDCHF=X"
 };
 
-// ✅ HEATMAP: Use ETFs for commodities (they have intraday data)
 const YAHOO_HEATMAP_SYMBOLS = {
   "EUR/USD": "EURUSD=X",
   "GBP/USD": "GBPUSD=X",
@@ -112,6 +113,19 @@ const YAHOO_HEATMAP_SYMBOLS = {
   Silver: "SLV",
   Platinum: "PPLT",
   "Crude Oil": "USO"
+};
+
+// ✅ Correlation Matrix Assets
+const CORRELATION_ASSETS = {
+  "USD Index": "DX-Y.NYB",
+  "Gold": "GC=F",
+  "Silver": "SI=F",
+  "Crude Oil": "CL=F",
+  "Platinum": "PL=F",
+  "EUR/USD": "EURUSD=X",
+  "Bitcoin": "BTC-USD",
+  "S&P 500": "^GSPC",
+  "JSE Top 40": "^J200.JO"
 };
 
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart";
@@ -135,12 +149,35 @@ const formatMover = (name, symbol, pct, type) => ({
   trend: pct >= 0 ? "positive" : "negative"
 });
 
+// ✅ Pearson Correlation Calculation
+function calculateCorrelation(arr1, arr2) {
+  const n = arr1.length;
+  if (n !== arr2.length || n === 0) return 0;
+
+  const mean1 = arr1.reduce((a, b) => a + b, 0) / n;
+  const mean2 = arr2.reduce((a, b) => a + b, 0) / n;
+
+  let numerator = 0;
+  let sum1 = 0;
+  let sum2 = 0;
+
+  for (let i = 0; i < n; i++) {
+    const diff1 = arr1[i] - mean1;
+    const diff2 = arr2[i] - mean2;
+    numerator += diff1 * diff2;
+    sum1 += diff1 * diff1;
+    sum2 += diff2 * diff2;
+  }
+
+  const denominator = Math.sqrt(sum1 * sum2);
+  return denominator === 0 ? 0 : numerator / denominator;
+}
+
 /* ------------------------------------------------------
-   NEWS ✅ FIXED
+   NEWS
 ------------------------------------------------------ */
 app.get("/api/news", async (req, res) => {
   try {
-    // Check cache (5 minute cache for news)
     if (newsCache && Date.now() - newsCacheTime < 5 * 60 * 1000) {
       console.log("✅ Using cached news data");
       return res.json(newsCache);
@@ -268,7 +305,7 @@ app.get("/api/forex", async (req, res) => {
 });
 
 /* ------------------------------------------------------
-   FOREX STRENGTH - IMPROVED ALGORITHM
+   FOREX STRENGTH
 ------------------------------------------------------ */
 app.get("/api/forex-strength", async (req, res) => {
   try {
@@ -321,7 +358,7 @@ app.get("/api/forex-strength", async (req, res) => {
 });
 
 /* ------------------------------------------------------
-   COMMODITIES - YAHOO FINANCE FUTURES ✅ BACK TO ORIGINAL
+   COMMODITIES
 ------------------------------------------------------ */
 app.get("/api/commodities", async (req, res) => {
   try {
@@ -458,6 +495,97 @@ app.get("/api/crypto", async (req, res) => {
 });
 
 /* ------------------------------------------------------
+   CORRELATION MATRIX ✅ NEW FEATURE
+------------------------------------------------------ */
+app.get("/api/correlation-matrix", async (req, res) => {
+  try {
+    const period = req.query.period || '30'; // 7, 30, 90, or 365 days
+    const cacheKey = `correlation_${period}`;
+
+    // Check cache
+    if (correlationCache[cacheKey] && 
+        Date.now() - correlationCacheTime < CORRELATION_TTL) {
+      console.log(`✅ Using cached correlation matrix (${period} days)`);
+      return res.json(correlationCache[cacheKey]);
+    }
+
+    console.log(`📊 Calculating correlation matrix (${period} days)...`);
+
+    // Step 1: Fetch historical data for all assets
+    const priceData = {};
+
+    for (const [name, symbol] of Object.entries(CORRELATION_ASSETS)) {
+      try {
+        const url = `${YAHOO_CHART}/${symbol}?interval=1d&range=${period}d`;
+        const r = await http.get(url);
+        const data = r.data.chart?.result?.[0];
+
+        if (!data) {
+          console.warn(`⚠️ No data for ${name} (${symbol})`);
+          continue;
+        }
+
+        const closes = data.indicators.quote[0].close.filter(n => typeof n === "number");
+
+        if (closes.length < 5) {
+          console.warn(`⚠️ Insufficient data for ${name}: ${closes.length} days`);
+          continue;
+        }
+
+        priceData[name] = closes;
+        console.log(`✅ Fetched ${closes.length} days for ${name}`);
+
+      } catch (err) {
+        console.warn(`⚠️ Error fetching ${name}:`, err.message);
+      }
+
+      await sleep(100);
+    }
+
+    // Step 2: Calculate correlation matrix
+    const assets = Object.keys(priceData);
+    const matrix = {};
+
+    for (const asset1 of assets) {
+      matrix[asset1] = {};
+
+      for (const asset2 of assets) {
+        if (asset1 === asset2) {
+          matrix[asset1][asset2] = 1.0;
+        } else {
+          const minLength = Math.min(priceData[asset1].length, priceData[asset2].length);
+          const data1 = priceData[asset1].slice(-minLength);
+          const data2 = priceData[asset2].slice(-minLength);
+
+          const correlation = calculateCorrelation(data1, data2);
+          matrix[asset1][asset2] = parseFloat(correlation.toFixed(2));
+        }
+      }
+    }
+
+    // Step 3: Build response
+    const response = {
+      period: parseInt(period),
+      assets: assets,
+      matrix: matrix,
+      timestamp: new Date().toISOString()
+    };
+
+    // Cache it
+    correlationCache[cacheKey] = response;
+    correlationCacheTime = Date.now();
+
+    console.log(`✅ Correlation matrix calculated for ${assets.length} assets`);
+
+    res.json(response);
+
+  } catch (err) {
+    console.error("❌ /api/correlation-matrix error:", err.message);
+    res.status(500).json({ error: "Failed to calculate correlation matrix" });
+  }
+});
+
+/* ------------------------------------------------------
    CRYPTO MOVERS
 ------------------------------------------------------ */
 async function fetchEodCryptoMovers() {
@@ -497,7 +625,7 @@ async function fetchEodCryptoMovers() {
 }
 
 /* ------------------------------------------------------
-   COMMODITY MOVERS - YAHOO FUTURES ✅ BACK TO ORIGINAL
+   COMMODITY MOVERS
 ------------------------------------------------------ */
 async function fetchCommodityMovers() {
   const items = [];
@@ -806,7 +934,7 @@ app.get("/api/crypto-heatmap", async (req, res) => {
 });
 
 /* ------------------------------------------------------
-   ECONOMIC CALENDAR (FINANCIAL MODELING PREP)
+   ECONOMIC CALENDAR
 ------------------------------------------------------ */
 app.get("/api/economic-calendar", async (req, res) => {
   try {
@@ -944,7 +1072,7 @@ app.get("/api/economic-calendar", async (req, res) => {
 });
 
 /* ------------------------------------------------------
-   JSE STOCKS (SOUTH AFRICA) - YAHOO FINANCE ✅
+   JSE STOCKS
 ------------------------------------------------------ */
 app.get("/api/jse-stocks", async (req, res) => {
   try {
@@ -1022,7 +1150,7 @@ app.get("/api/jse-stocks", async (req, res) => {
 
     results.sort((a, b) => Math.abs(b.rawChange) - Math.abs(a.rawChange));
 
-    console.log(`✅ Loaded ${results.length} JSE stocks (${Object.keys(JSE_SYMBOLS).length - results.length} skipped due to errors)`);
+    console.log(`✅ Loaded ${results.length} JSE stocks`);
     
     res.json(results);
 
@@ -1033,7 +1161,7 @@ app.get("/api/jse-stocks", async (req, res) => {
 });
 
 /* ------------------------------------------------------
-   US STOCKS - WITH NaN PROTECTION (EODHD) ✅
+   US STOCKS
 ------------------------------------------------------ */
 app.get("/api/us-stocks", async (req, res) => {
   try {
@@ -1110,7 +1238,7 @@ app.get("/api/us-stocks", async (req, res) => {
 
     results.sort((a, b) => Math.abs(b.rawChange) - Math.abs(a.rawChange));
 
-    console.log(`✅ Loaded ${results.length} US stocks (${Object.keys(US_SYMBOLS).length - results.length} skipped due to errors)`);
+    console.log(`✅ Loaded ${results.length} US stocks`);
     
     res.json(results);
 
@@ -1121,7 +1249,7 @@ app.get("/api/us-stocks", async (req, res) => {
 });
 
 /* ------------------------------------------------------
-   SA MARKETS (SOUTH AFRICA) - COMBINED DATA
+   SA MARKETS
 ------------------------------------------------------ */
 app.get("/api/sa-markets", async (req, res) => {
   try {
@@ -1180,4 +1308,5 @@ app.get("/api/sa-markets", async (req, res) => {
 ------------------------------------------------------ */
 app.listen(PORT, () => {
   console.log(`🚀 Marome Backend running on port ${PORT}`);
+  console.log(`📊 Correlation Matrix API: http://localhost:${PORT}/api/correlation-matrix?period=30`);
 });
